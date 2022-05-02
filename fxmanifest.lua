@@ -16,4 +16,5 @@ server_scripts({
 
 files({ "ui/dist/**" })
 
-ui_page("http://localhost:3000/index.html")
+-- ui_page("http://localhost:3000/index.html")
+ui_page("ui/dist/index.html")

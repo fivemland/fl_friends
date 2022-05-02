@@ -1,3 +1,5 @@
+Friends = {}
+
 Panel = {
 	visible = false,
 
@@ -7,8 +9,7 @@ Panel = {
 		end)
 
 		RegisterNetEvent("openFriendsPanel", function(friends)
-			print(ESX.DumpTable(friends))
-			self:setVisible(true)
+			self:setVisible(not self.visible)
 			self:update(friends)
 		end)
 
@@ -48,20 +49,19 @@ Panel = {
 
 		RegisterNUICallback("requestPlayerInfo", function(data, cb)
 			if not data.identifier then
-				ESX.ShowNotification("Player not found!")
-				return cb({ error = true })
+				return cb({ error = "Player not found!" })
 			end
 
 			ESX.TriggerServerCallback("requestPlayerInfo", function(result, err)
-				if err then
-					ESX.ShowNotification(err)
-				end
-
 				cb({
 					error = not result and err,
 					result = result,
 				})
 			end, data.identifier)
+		end)
+
+		ESX.TriggerServerCallback("requestPlayerFriends", function(friends)
+			self:update(friends)
 		end)
 	end,
 
@@ -74,6 +74,13 @@ Panel = {
 
 	update = function(self, friends)
 		SendNUIMessage({ updatePlayers = friends })
+
+		Friends = {}
+		for _, friend in pairs(friends) do
+			if (friend.pending or 1) == 0 then
+				Friends[friend.friend] = friend
+			end
+		end
 	end,
 }
 Panel.__index = Panel
@@ -84,4 +91,8 @@ CreateThread(function()
 	end
 
 	Panel:init()
+end)
+
+exports("isPlayerFriend", function(identifier)
+	return Friends[identifier]
 end)

@@ -1,15 +1,17 @@
 import { writable, readable, get } from 'svelte/store';
 
-export const visible = writable(true);
+export const visible = writable(false);
 
 export const PAGES = readable([
   {
     name: 'all',
     label: 'All Friends',
+    no_text: 'No friends',
   },
   {
     name: 'pendings',
     label: 'Pending Friends',
+    no_text: 'No pending friend requests',
   },
 ]);
 
@@ -29,8 +31,8 @@ window.addEventListener('message', ({ data }) => {
       } else {
         newPlayers.all = [...newPlayers.all, player];
       }
-
-      players.set(newPlayers);
     });
+
+    players.set(newPlayers);
   }
 });

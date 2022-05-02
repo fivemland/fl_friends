@@ -7,8 +7,6 @@
   let requestID = '';
 
   function sendRequest() {
-    console.log(requestID);
-
     fetch(`https://${GetParentResourceName()}/sendRequest`, {
       method: 'POST',
       body: JSON.stringify({
@@ -32,9 +30,9 @@
       {/each}
     </div>
 
-    <div class="mt-2">
+    <div class="mt-2 max-h-72 overflow-y-auto">
       {#if !$players[$activePage] || $players[$activePage].length <= 0}
-        <div class="text-center text-lg italic mt-5">No friend</div>
+        <div class="text-center text-warning text-lg italic mt-5">{$PAGES.find((page) => page.name === $activePage).no_text}</div>
       {:else}
         {#each $players[$activePage] as player}
           <PlayerLine {player} />

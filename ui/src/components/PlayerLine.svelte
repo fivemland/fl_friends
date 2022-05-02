@@ -1,14 +1,15 @@
 <script>
+  import dayjs from 'dayjs';
+  import relativeTime from 'dayjs/plugin/relativeTime';
+  dayjs.extend(relativeTime);
+
   import { activePage } from '../stores';
   import Loading from './Loading.svelte';
+  import CopyButton from './CopyButton.svelte';
 
   export let player;
 
-  let userInfo = false;
-
-  async function openInfo() {
-    userInfo = false;
-
+  async function getUserInfo() {
     const response = await fetch(`https://${GetParentResourceName()}/requestPlayerInfo`, {
       method: 'POST',
       body: JSON.stringify({
@@ -16,11 +17,11 @@
       }),
     });
 
-    const responseJson = await response.json();
+    const { error, result } = await response.json();
 
-    if (responseJson.error) return (userInfo = responseJson.error);
+    if (error) throw new Error(error);
 
-    userInfo = responseJson.result;
+    return result;
   }
 
   function friendInteraction(method = 'delete') {
@@ -43,42 +44,38 @@
           <i class="fa-solid fa-check" />
         </button>
       {:else}
-        <label on:click={openInfo} for="playerInfoModal" class="btn btn-info btn-sm btn-circle"><i class="fa-solid fa-info" /></label>
+        <label for="playerInfoModal" class="btn btn-info btn-sm btn-circle"><i class="fa-solid fa-info" /></label>
       {/if}
-      <button on:click={() => friendInteraction('delete')} class="btn btn-error btn-sm btn-circle">
+
+      <label for="removeModal" class="btn btn-error btn-sm btn-circle">
         <i class="fa-solid fa-trash-can" />
-      </button>
+      </label>
     </div>
   </div>
 
+  <!-- Player informations modal -->
   <input type="checkbox" id="playerInfoModal" class="modal-toggle" />
   <div class="modal">
     <div class="modal-box relative">
-      <label on:click={(userInfo = false)} for="playerInfoModal" class="btn btn-sm btn-circle absolute right-2 top-2">
+      <label for="playerInfoModal" class="btn btn-sm btn-circle absolute right-2 top-2">
         <i class="fa-solid fa-xmark text-lg" />
       </label>
       <h3 class="text-lg font-bold">Friend Informations</h3>
 
-      {#if userInfo === false || userInfo === undefined}
+      {#await getUserInfo()}
         <Loading />
-      {:else if typeof userInfo === 'string'}
-        {userInfo}
-      {:else}
+      {:then data}
         <div class="overflow-x-auto mt-3 bg-base-200 p-3 rounded-md">
           <table class="table table-compact w-full">
             <tbody>
               <tr>
                 <td>Character Name</td>
-                <td class="text-right">{userInfo.charName}</td>
-              </tr>
-              <tr>
-                <td>Discord Name</td>
-                <td class="text-right">{userInfo.discordName}</td>
+                <td class="text-right">{data.charName}</td>
               </tr>
               <tr>
                 <td>Status</td>
-                <td class={`text-right ${userInfo.online ? 'text-success' : 'text-error'}`}>
-                  {#if userInfo.online}
+                <td class={`text-right ${data.online ? 'text-success' : 'text-error'}`}>
+                  {#if data.online}
                     <i class="fa-solid fa-circle" />
                     Online
                   {:else}
@@ -88,13 +85,50 @@
                 </td>
               </tr>
               <tr>
-                <td>Phone Number</td>
-                <td class="text-right">{userInfo.phone_number}</td>
+                <td>Friendship beginning date</td>
+                <td class="text-right">{dayjs(data.add_date).fromNow()}</td>
+              </tr>
+              <tr>
+                <td>
+                  Discord Name
+                  <CopyButton text={data.discordName} />
+                </td>
+                <td class="text-right">
+                  {data.discordName}
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Phone Number
+                  <CopyButton text={data.phone_number} />
+                </td>
+                <td class="text-right">{data.phone_number}</td>
               </tr>
             </tbody>
           </table>
         </div>
-      {/if}
+      {:catch error}
+        <div class="text-error text-center">
+          <div class="text-xl">ERROR</div>
+          {error.message}
+        </div>
+      {/await}
     </div>
   </div>
 {/if}
+
+<!-- Delete confirm modal -->
+<input type="checkbox" id="removeModal" class="modal-toggle" />
+<div class="modal">
+  <div class="modal-box relative">
+    <label for="removeModal" class="btn btn-sm btn-circle absolute right-2 top-2">
+      <i class="fa-solid fa-xmark text-lg" />
+    </label>
+    <h3 class="text-lg font-bold">Friend Remove</h3>
+    <div class="text-md">Are you sure you want to delete this friend?</div>
+
+    <label on:click={() => friendInteraction('delete')} for="removeModal" class="btn btn-sm btn-error float-right">
+      <i class="fa-solid fa-trash-can mr-1" /> Remove
+    </label>
+  </div>
+</div>

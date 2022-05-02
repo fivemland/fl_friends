@@ -6,10 +6,31 @@
   background-color: transparent;
 }
 
-body {
+#app {
   width: 100vw;
   height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+.clipboard {
+  position: absolute;
+  left: -100%;
+  top: -100%;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: rgb(35, 35, 35);
+  border-radius: 0.25em;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--tw-ring-color);
+  border-radius: 0.25em;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(60, 60, 60);
 }

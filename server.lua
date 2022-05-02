@@ -13,17 +13,68 @@ CreateThread(function()
 end)
 
 function getPlayerFriends(player, typ)
-	local xPlayer = ESX.GetPlayerFromId(player)
+	local xPlayer = false
+	if type(player) == "table" then
+		xPlayer = player
+	else
+		xPlayer = ESX.GetPlayerFromId(player)
+	end
 
-	local result = MySQL.query.await(
-		"SELECT friends.*, CONCAT(users.firstname, ' ', users.lastname) AS charName FROM friends, users WHERE friends.identifier = ? AND users.identifier=friends.friend",
+	return MySQL.query.await(
+		[[
+			SELECT friends.*, CONCAT(users.firstname, ' ', users.lastname) AS charName
+			FROM friends, users
+			WHERE friends.identifier = ? AND users.identifier=friends.friend
+		]],
 		{ xPlayer.identifier }
 	)
-
-	return result
 end
+exports("getPlayerFriends", getPlayerFriends)
 
-RegisterCommand("friends", function(player)
+ESX.RegisterServerCallback("requestPlayerFriends", function(player, cb)
+	cb(getPlayerFriends(player))
+end)
+
+function getPlayerDiscordName(player)
+	local ids = GetPlayerIdentifiers(player)
+	local discordId = false
+
+	for _, id in pairs(ids) do
+		if id:find("discord:") then
+			discordId = id:gsub("discord:", "")
+			break
+		end
+	end
+
+	if not discordId then
+		return "Unknown"
+	end
+
+	local p = promise.new()
+
+	PerformHttpRequest(
+		"https://discord.com/api/v9/users/" .. discordId,
+		function(code, result)
+			if code ~= 200 then
+				return p:resolve("Unknown")
+			end
+
+			result = json.decode(result)
+
+			p:resolve(result.username .. " #" .. result.discriminator)
+		end,
+		"GET",
+		"",
+		{
+			Authorization = "Bot " .. DISCORD_BOT_TOKEN,
+		}
+	)
+
+	return Citizen.Await(p)
+end
+exports("getPlayerDiscordName", getPlayerDiscordName)
+
+RegisterCommand(PANEL_COMMAND, function(player)
 	TriggerClientEvent("openFriendsPanel", player, getPlayerFriends(player))
 end)
 
@@ -42,6 +93,18 @@ ESX.RegisterServerCallback("newFriendRequest", function(player, cb, targetId)
 		return cb(false, "Player not found!")
 	end
 
+	local exists = MySQL.scalar.await(
+		"SELECT dbID FROM friends WHERE identifier = ? AND friend = ?",
+		{ xPlayer.identifier, xTarget.identifier }
+	)
+	if exists then
+		return cb(false, "You are already friends or have a pending request.")
+	end
+
+	MySQL.insert.await(
+		"INSERT INTO friends SET identifier = ?, friend = ?, pending = 0",
+		{ xPlayer.identifier, xTarget.identifier }
+	)
 	MySQL.insert.await("INSERT INTO friends SET identifier = ?, friend = ?", { xPlayer.identifier, xTarget.identifier })
 
 	cb(getPlayerFriends(player), "Friend request sent")
@@ -57,9 +120,22 @@ ESX.RegisterServerCallback("friendInteraction", function(player, cb, method, tar
 	end
 
 	if method == "delete" then
+		MySQL.query.await(
+			"DELETE FROM friends WHERE identifier = ? AND friend = ?",
+			{ targetPlayer.identifier, targetPlayer.friend }
+		)
+		MySQL.query.await(
+			"DELETE FROM friends WHERE identifier = ? AND friend = ?",
+			{ targetPlayer.friend, targetPlayer.identifier }
+		)
 		MySQL.query.await("DELETE FROM friends WHERE dbID = ?", { targetPlayer.dbID })
 	elseif method == "accept" then
 		MySQL.query.await("UPDATE friends SET pending = 0 WHERE dbID = ? ", { targetPlayer.dbID })
+	end
+
+	local xTarget = ESX.GetPlayerFromIdentifier(targetPlayer.friend)
+	if xTarget then
+		TriggerClientEvent("updatePlayerFriends", xTarget.source, getPlayerFriends(xTarget))
 	end
 
 	cb(getPlayerFriends(player))
@@ -82,8 +158,10 @@ ESX.RegisterServerCallback("requestPlayerInfo", function(player, cb, identifier)
 	result = result[1]
 
 	local xTarget = ESX.GetPlayerFromIdentifier(identifier)
-	result.online = xTarget and true or false
+	if xTarget then
+		result.online = true
+		result.discordName = getPlayerDiscordName(xTarget.source)
+	end
 
-	print(ESX.DumpTable(result))
 	cb(result)
 end)
